@@ -1,0 +1,1 @@
+# Requires GCC compiler, C++17 standard or higher
