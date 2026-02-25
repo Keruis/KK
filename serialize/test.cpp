@@ -22,7 +22,7 @@ struct A : B {
     std::vector<int> v;
 };
 
-using namespace KK::Utils::Reflection;
+using namespace KK::Utils::Serialize;
 
 int main() {
     A a{
