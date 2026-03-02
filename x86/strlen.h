@@ -4,14 +4,156 @@
 #include <immintrin.h>
 
 #include "util.h"
+#include "simd_level.h"
 
 namespace KK::x86::String {
 
-template <typename T>
+template <Level::SimdLevel, typename T>
 [[nodiscard]] inline std::size_t strlen [[using gnu:always_inline, pure]](const T* ptr) noexcept;
 
-template <typename T>
-    requires (Util::is_any_of_v<T, char, char8_t>)
+template <Level::SimdLevel level, typename T>
+    requires (Util::is_any_of_v<T, char, char8_t> && level == Level::SimdLevel::SSE)
+[[nodiscard]] inline std::size_t strlen [[using gnu:always_inline, pure]](const T* ptr) noexcept {
+    std::size_t result;
+    std::size_t base{};
+    std::size_t block = reinterpret_cast<std::uintptr_t>(ptr) & -16;
+    std::size_t addr  = reinterpret_cast<std::uintptr_t>(ptr);
+    __m128i zero = _mm_setzero_si128();
+    __asm__ inline (
+        "   pcmpeqb (%[block]), %[zero]            ;    "
+        "   pmovmskb %[zero], %[out]               ;    "
+        "   shrx %[shift], %[out], %[out]          ;    "
+        "   test %[out], %[out]                    ;    "
+        "   jnz 1f                                 ;    "
+
+        "   add $32, %[block]                      ;    "
+
+        "   2:                                     ;    "
+        "   pxor %[zero], %[zero]                  ;    "
+        "   pcmpeqb -16(%[block]), %[zero]         ;    "
+        "   pmovmskb %[zero], %[out]               ;    "
+        "   test %[out], %[out]                    ;    "
+        "   jnz 3f                                 ;    "
+        "   pxor %[zero], %[zero]                  ;    "
+        "   pcmpeqb (%[block]), %[zero]            ;    "
+        "   pmovmskb %[zero], %[out]               ;    "
+        "   add $32, %[block]                      ;    "
+        "   test %[out], %[out]                    ;    "
+        "   jz 2b                                  ;    "
+        "   sub $16, %[block]                      ;    "
+
+        "   3:                                     ;    "
+        "   sub %[addr], %[block]                  ;    "
+        "   lea -16(%[block]), %[base]             ;    "
+
+        "   1:                                     ;    "
+        "   tzcnt %[out], %[out]                   ;    "
+        "   add %[base], %[out]                    ;    "
+        : [out] "=&r" (result), [block] "+r" (block), [base] "+r" (base)
+        : [addr] "r" (addr), [shift]  "r"  (reinterpret_cast<std::uintptr_t>(ptr) & 15), [zero] "x" (zero)
+        : "cc"
+    );
+
+    return result;
+}
+
+template <Level::SimdLevel level, typename T>
+    requires (Util::is_any_of_v<T, wchar_t, char16_t> && level == Level::SimdLevel::SSE)
+[[nodiscard]] inline std::size_t strlen [[using gnu:always_inline, pure]](const T* ptr) noexcept {
+    std::size_t result;
+    std::size_t base{};
+    std::size_t block = reinterpret_cast<std::uintptr_t>(ptr) & -16;
+    std::size_t addr  = reinterpret_cast<std::uintptr_t>(ptr);
+    __m128i zero = _mm_setzero_si128();
+    __asm__ inline (
+        "   pcmpeqw (%[block]), %[zero]            ;    "
+        "   pmovmskb %[zero], %[out]               ;    "
+        "   shrx %[shift], %[out], %[out]          ;    "
+        "   test %[out], %[out]                    ;    "
+        "   jnz 1f                                 ;    "
+
+        "   add $32, %[block]                      ;    "
+
+        "   2:                                     ;    "
+        "   pxor %[zero], %[zero]                  ;    "
+        "   pcmpeqw -16(%[block]), %[zero]         ;    "
+        "   pmovmskb %[zero], %[out]               ;    "
+        "   test %[out], %[out]                    ;    "
+        "   jnz 3f                                 ;    "
+        "   pxor %[zero], %[zero]                  ;    "
+        "   pcmpeqw (%[block]), %[zero]            ;    "
+        "   pmovmskb %[zero], %[out]               ;    "
+        "   add $32, %[block]                      ;    "
+        "   test %[out], %[out]                    ;    "
+        "   jz 2b                                  ;    "
+        "   sub $16, %[block]                      ;    "
+
+        "   3:                                     ;    "
+        "   sub %[addr], %[block]                  ;    "
+        "   lea -16(%[block]), %[base]             ;    "
+
+        "   1:                                     ;    "
+        "   tzcnt %[out], %[out]                   ;    "
+        "   add %[base], %[out]                    ;    "
+        "   shr $1, %[out]                         ;    "
+        : [out] "=&r" (result), [block] "+r" (block), [base] "+r" (base)
+        : [addr] "r" (addr), [shift]  "r"  (reinterpret_cast<std::uintptr_t>(ptr) & 15), [zero] "x" (zero)
+        : "cc"
+    );
+
+    return result;
+}
+
+template <Level::SimdLevel level, typename T>
+    requires (Util::is_any_of_v<T, char32_t> && level == Level::SimdLevel::SSE)
+[[nodiscard]] inline std::size_t strlen [[using gnu:always_inline, pure]](const T* ptr) noexcept {
+    std::size_t result;
+    std::size_t base{};
+    std::size_t block = reinterpret_cast<std::uintptr_t>(ptr) & -16;
+    std::size_t addr  = reinterpret_cast<std::uintptr_t>(ptr);
+    __m128i zero = _mm_setzero_si128();
+    __asm__ inline (
+        "   pcmpeqd (%[block]), %[zero]            ;    "
+        "   pmovmskb %[zero], %[out]               ;    "
+        "   shrx %[shift], %[out], %[out]          ;    "
+        "   test %[out], %[out]                    ;    "
+        "   jnz 1f                                 ;    "
+
+        "   add $32, %[block]                      ;    "
+
+        "   2:                                     ;    "
+        "   pxor %[zero], %[zero]                  ;    "
+        "   pcmpeqd -16(%[block]), %[zero]         ;    "
+        "   pmovmskb %[zero], %[out]               ;    "
+        "   test %[out], %[out]                    ;    "
+        "   jnz 3f                                 ;    "
+        "   pxor %[zero], %[zero]                  ;    "
+        "   pcmpeqd (%[block]), %[zero]            ;    "
+        "   pmovmskb %[zero], %[out]               ;    "
+        "   add $32, %[block]                      ;    "
+        "   test %[out], %[out]                    ;    "
+        "   jz 2b                                  ;    "
+        "   sub $16, %[block]                      ;    "
+
+        "   3:                                     ;    "
+        "   sub %[addr], %[block]                  ;    "
+        "   lea -16(%[block]), %[base]             ;    "
+
+        "   1:                                     ;    "
+        "   tzcnt %[out], %[out]                   ;    "
+        "   add %[base], %[out]                    ;    "
+        "   shr $2, %[out]                         ;    "
+        : [out] "=&r" (result), [block] "+r" (block), [base] "+r" (base)
+        : [addr] "r" (addr), [shift]  "r"  (reinterpret_cast<std::uintptr_t>(ptr) & 15), [zero] "x" (zero)
+        : "cc"
+    );
+
+    return result;
+}
+
+// ---------------------------AVX2--------------------------------------------------------------------------
+template <Level::SimdLevel level, typename T>
+    requires (Util::is_any_of_v<T, char, char8_t> && level == Level::SimdLevel::AVX2)
 [[nodiscard]] inline std::size_t strlen [[using gnu:always_inline, pure]](const T* ptr) noexcept {
     std::size_t result;
     std::size_t base{};
@@ -55,8 +197,8 @@ template <typename T>
     return result;
 }
 
-template <typename T>
-    requires (Util::is_any_of_v<T, wchar_t, char16_t>)
+template <Level::SimdLevel level, typename T>
+    requires (Util::is_any_of_v<T, wchar_t, char16_t> && level == Level::SimdLevel::AVX2)
 [[nodiscard]] inline std::size_t strlen [[using gnu:always_inline, pure]](const T* ptr) noexcept {
     std::size_t result;
     std::size_t base{};
@@ -101,8 +243,8 @@ template <typename T>
     return result;
 }
 
-template <typename T>
-    requires (Util::is_any_of_v<T, char32_t>)
+template <Level::SimdLevel level, typename T>
+    requires (Util::is_any_of_v<T, char32_t> && level == Level::SimdLevel::AVX2)
 [[nodiscard]] inline std::size_t strlen [[using gnu:always_inline, pure]](const T* ptr) noexcept {
     std::size_t result;
     std::size_t base{};
